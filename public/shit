@@ -1,0 +1,1832 @@
+src/components/CarDetailClient.jsx:
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import api from "@/lib/api";
+
+export default function CarDetailClient({ car }) {
+  const router = useRouter();
+  const [startDate, setStartDate] = useState(new Date());
+  const [endDate, setEndDate] = useState(new Date());
+  const [isBooking, setIsBooking] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const user = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("user") || "null") : null;
+  const isLoggedIn = Boolean(user?.id);
+
+  const handleBooking = async (event) => {
+    event.preventDefault();
+    setError("");
+    setSuccess("");
+
+    if (!isLoggedIn) {
+      router.push("/login");
+      return;
+    }
+
+    if (!car.available) {
+      setError("This car is currently unavailable.");
+      return;
+    }
+
+    if (endDate < startDate) {
+      setError("End date must be after start date.");
+      return;
+    }
+
+    const days = Math.max(
+      1,
+      Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24))
+    );
+    const totalPrice = days * car.pricePerDay;
+
+    setIsBooking(true);
+
+    try {
+      await api.post(
+        "/bookings",
+        {
+          userId: user.id,
+          carId: car._id,
+          startDate,
+          endDate,
+          totalPrice,
+        }
+      );
+
+      setSuccess("Booking confirmed! Check your email for details.");
+      setTimeout(() => {
+        router.push("/bookings");
+      }, 900);
+    } catch (error) {
+      setError(error.response?.data?.message || "Unable to complete booking. Please try again.");
+    } finally {
+      setIsBooking(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleBooking} className="space-y-6">
+      <div className="rounded-[2rem] bg-slate-950/90 p-6 text-white shadow-lg border border-white/10">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm uppercase tracking-[0.3em] text-sky-300">Booking form</p>
+            <h3 className="mt-3 text-2xl font-bold">Schedule your rental</h3>
+          </div>
+          <span className={`rounded-full px-4 py-2 text-sm font-semibold ${car.available ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`}>
+            {car.available ? "Ready to reserve" : "Unavailable"}
+          </span>
+        </div>
+
+        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="block text-sm font-medium text-slate-300">Start Date</label>
+            <DatePicker
+              selected={startDate}
+              onChange={setStartDate}
+              className="mt-2 w-full rounded-3xl border border-slate-700 bg-slate-950/90 px-4 py-3 text-white outline-none focus:border-sky-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-300">End Date</label>
+            <DatePicker
+              selected={endDate}
+              onChange={setEndDate}
+              className="mt-2 w-full rounded-3xl border border-slate-700 bg-slate-950/90 px-4 py-3 text-white outline-none focus:border-sky-500"
+            />
+          </div>
+        </div>
+
+        <div className="mt-6 rounded-3xl bg-slate-900/80 p-5">
+          <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Estimated total</p>
+          <p className="mt-3 text-3xl font-bold text-white">${Math.max(1, Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24))) * car.pricePerDay}</p>
+        </div>
+      </div>
+
+      {error ? <p className="text-sm text-rose-400">{error}</p> : null}
+      {success ? <p className="text-sm text-emerald-400">{success}</p> : null}
+
+      <button
+        type="submit"
+        disabled={!car.available || isBooking}
+        className="w-full rounded-3xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-slate-500"
+      >
+        {isBooking ? "Booking..." : isLoggedIn ? "Confirm booking" : "Login to book"}
+      </button>
+    </form>
+  );
+}
+
+src/components/BookingModal.jsx:
+"use client";
+
+import { useState } from "react";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import api from "@/lib/api";
+
+export default function BookingModal({ car, onClose }) {
+  const [startDate, setStartDate] = useState(new Date());
+  const [endDate, setEndDate] = useState(new Date());
+  const user = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("user") || "null") : null;
+
+  const handleBooking = async () => {
+
+    const days =
+      Math.ceil(
+        (endDate - startDate) / (1000 * 60 * 60 * 24)
+      ) || 1;
+
+    const totalPrice = days * car.pricePerDay;
+
+    try {
+      await api.post(
+        "/bookings",
+        {
+          userId: user.id,
+          carId: car._id,
+          startDate,
+          endDate,
+          totalPrice,
+        }
+      );
+
+      alert("Booking Successful!");
+      onClose();
+    } catch (error) {
+      alert("Booking Failed");
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
+      <div className="bg-white p-6 rounded-xl w-96">
+        <h2 className="text-xl font-bold mb-4">
+          Book {car.name}
+        </h2>
+
+        <p>Start Date</p>
+        <DatePicker
+          selected={startDate}
+          onChange={setStartDate}
+          className="border p-2 w-full"
+        />
+
+        <p className="mt-3">End Date</p>
+        <DatePicker
+          selected={endDate}
+          onChange={setEndDate}
+          className="border p-2 w-full"
+        />
+
+        <button
+          onClick={handleBooking}
+          className="bg-blue-600 text-white px-4 py-2 mt-4 rounded"
+        >
+          Confirm Booking
+        </button>
+      </div>
+    </div>
+  );
+}
+
+src/components/Navbar.jsx:
+
+"use client";
+
+import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+
+export default function Navbar() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [user, setUser] = useState(null);
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    const storedUser = localStorage.getItem("user");
+    setUser(storedUser ? JSON.parse(storedUser) : null);
+  }, [pathname]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  const logout = () => {
+    localStorage.removeItem("user");
+    setUser(null);
+    router.push("/login");
+  };
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-6 py-4 shadow-sm">
+      <div className="flex items-center gap-3">
+        <h1
+          className="text-xl font-bold cursor-pointer text-slate-900"
+          onClick={() => router.push("/")}
+        >
+          🚗 Car Rental
+        </h1>
+        {user ? (
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-600">
+            Hi, {user.name}
+          </span>
+        ) : null}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          onClick={() => router.push("/cars")}
+          className="rounded-full px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+        >
+          Cars
+        </button>
+
+        <button
+          onClick={() => router.push("/bookings")}
+          className="rounded-full px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+        >
+          Bookings
+        </button>
+
+        {user ? (
+          <>
+            {user?.role === "admin" ? (
+              <button
+                onClick={() => router.push("/dashboard")}
+                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              >
+                Dashboard
+              </button>
+            ) : null}
+            <button
+              onClick={() => router.push("/profile")}
+              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+            >
+              Profile
+            </button>
+            <button
+              onClick={logout}
+              className="rounded-full bg-sky-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-700"
+            >
+              Logout
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              onClick={() => router.push("/login")}
+              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+            >
+              Login
+            </button>
+            <button
+              onClick={() => router.push("/register")}
+              className="rounded-full bg-sky-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-700"
+            >
+              Register
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+src/lib/api.js:
+import axios from "axios";
+
+const api = axios.create({
+  baseURL: process.env.NEXT_PUBLIC_API_URL || "/api",
+});
+
+export default api;
+
+src/lib/auth.js:
+import jwt from "jsonwebtoken";
+
+const JWT_SECRET = process.env.JWT_SECRET || "dev_jwt_secret_change_me";
+
+export function verifyToken(token) {
+  try {
+    return jwt.verify(token, JWT_SECRET);
+  } catch (error) {
+    return null;
+  }
+}
+
+src/lib/authMiddleware.js:
+export function getUserFromToken(request) {
+  // Without JWT, we'll get user info from the request headers or session
+  // For now, return null - routes can use email-based lookup or session
+  return null;
+}
+
+src/lib/mongodb.js:
+
+import mongoose from "mongoose";
+
+const MONGODB_URI = process.env.MONGODB_URI;
+
+if (!MONGODB_URI) {
+  throw new Error("Please define MONGODB_URI in .env.local");
+}
+
+let cached = global.mongoose;
+
+if (!cached) {
+  cached = global.mongoose = {
+    conn: null,
+    promise: null,
+  };
+}
+
+async function connectDB() {
+  if (cached.conn) {
+    return cached.conn;
+  }
+
+  if (!cached.promise) {
+    cached.promise = mongoose.connect(MONGODB_URI).then((mongoose) => {
+      return mongoose;
+    });
+  }
+
+  cached.conn = await cached.promise;
+  return cached.conn;
+}
+
+export default connectDB;
+
+models/Booking.js:
+
+import mongoose from "mongoose";
+
+const BookingSchema = new mongoose.Schema(
+  {
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+
+    carId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Car",
+    },
+
+    startDate: {
+      type: Date,
+      required: true,
+    },
+
+    endDate: {
+      type: Date,
+      required: true,
+    },
+
+    totalPrice: {
+      type: Number,
+      required: true,
+    },
+
+    status: {
+      type: String,
+      default: "Pending",
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+export default mongoose.models.Booking ||
+  mongoose.model("Booking", BookingSchema);
+
+models/Cars:
+import mongoose from "mongoose";
+
+const CarSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+    },
+
+    brand: {
+      type: String,
+      required: true,
+    },
+
+    model: {
+      type: String,
+      required: true,
+    },
+
+    year: {
+      type: Number,
+      required: true,
+    },
+
+    type: {
+      type: String,
+      required: true,
+    },
+
+    pricePerDay: {
+      type: Number,
+      required: true,
+    },
+
+    image: {
+      type: String,
+      required: true,
+    },
+
+    description: {
+      type: String,
+      required: true,
+    },
+
+    available: {
+      type: Boolean,
+      default: true,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+export default mongoose.models.Car ||
+  mongoose.model("Car", CarSchema);
+models/User:
+import mongoose from "mongoose";
+
+const UserSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+    },
+
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+    },
+
+    password: {
+      type: String,
+      required: true,
+    },
+
+    role: {
+      type: String,
+      enum: ["user", "admin"],
+      default: "user",
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+export default mongoose.models.User ||
+  mongoose.model("User", UserSchema);
+
+.env.local:
+MONGODB_URI="mongodb://admin:admin123@ac-7cw2qd1-shard-00-00.auunjrj.mongodb.net:27017,ac-7cw2qd1-shard-00-01.auunjrj.mongodb.net:27017,ac-7cw2qd1-shard-00-02.auunjrj.mongodb.net:27017/?ssl=true&replicaSet=atlas-piwvpr-shard-0&authSource=admin&appName=Cluster0"
+
+
+src/app/admin/cars/page.jsx:
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import api from "@/lib/api";
+
+export default function AdminCars() {
+  const router = useRouter();
+  const [cars, setCars] = useState([]);
+  const [form, setForm] = useState({
+    name: "",
+    brand: "",
+    model: "",
+    year: "",
+    type: "",
+    pricePerDay: "",
+    image: "",
+    description: "",
+  });
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  const isAdmin = user?.role === "admin";
+
+  const loadCars = async () => {
+    try {
+      const res = await api.get("/cars");
+      setCars(res.data.cars || []);
+    } catch (err) {
+      setCars([]);
+    }
+  };
+
+  useEffect(() => {
+    const loadAuth = () => {
+      const storedUser = typeof window !== "undefined" ? localStorage.getItem("user") : null;
+      setUser(storedUser ? JSON.parse(storedUser) : null);
+      setAuthLoading(false);
+    };
+
+    loadAuth();
+  }, []);
+
+  useEffect(() => {
+    if (!authLoading && !isAdmin) {
+      router.push("/login");
+    }
+  }, [authLoading, isAdmin, router]);
+
+  useEffect(() => {
+    const fetchCars = async () => {
+      await loadCars();
+    };
+
+    fetchCars();
+  }, []);
+
+  const handleChange = (event) => {
+    setForm({ ...form, [event.target.name]: event.target.value });
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    if (!isAdmin) {
+      router.push("/login");
+      return;
+    }
+
+    try {
+      await api.post("/cars", {
+        isAdmin: true,
+        role: user?.role,
+        ...form,
+        year: Number(form.year),
+        pricePerDay: Number(form.pricePerDay),
+      });
+      setForm({
+        name: "",
+        brand: "",
+        model: "",
+        year: "",
+        type: "",
+        pricePerDay: "",
+        image: "",
+        description: "",
+      });
+      await loadCars();
+    } catch (err) {
+      setError(err.response?.data?.message || "Unable to add car.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!isAdmin) {
+      router.push("/login");
+      return;
+    }
+
+    if (!confirm("Delete this car?")) {
+      return;
+    }
+
+    try {
+      await api.delete(`/cars/${id}`, {
+        data: {
+          isAdmin: true,
+          role: user?.role,
+        },
+      });
+      await loadCars();
+    } catch (err) {
+      setError(err.response?.data?.message || "Unable to delete car.");
+    }
+  };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 px-6 py-10">
+        <div className="mx-auto max-w-6xl rounded-3xl bg-white p-10 shadow-xl border border-slate-200 text-center">
+          <p className="text-lg font-semibold text-slate-900">Checking admin access...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50 px-6 py-10">
+      <div className="mx-auto max-w-6xl space-y-10">
+        <div className="rounded-3xl bg-white p-10 shadow-xl border border-slate-200">
+          <h1 className="text-4xl font-bold text-slate-900">Admin Car Management</h1>
+          <p className="mt-3 text-slate-600">Create, update, and remove cars that are available for rental.</p>
+        </div>
+
+        <div className="grid gap-8 xl:grid-cols-[1.4fr_1fr]">
+          <section className="rounded-3xl bg-white p-8 shadow-xl border border-slate-200">
+            <h2 className="text-2xl font-semibold text-slate-900">Add New Car</h2>
+            <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <input
+                  name="name"
+                  value={form.name}
+                  onChange={handleChange}
+                  placeholder="Car Name"
+                  className="w-full rounded-3xl border border-slate-200 bg-slate-50 p-4"
+                />
+                <input
+                  name="brand"
+                  value={form.brand}
+                  onChange={handleChange}
+                  placeholder="Brand"
+                  className="w-full rounded-3xl border border-slate-200 bg-slate-50 p-4"
+                />
+                <input
+                  name="model"
+                  value={form.model}
+                  onChange={handleChange}
+                  placeholder="Model"
+                  className="w-full rounded-3xl border border-slate-200 bg-slate-50 p-4"
+                />
+                <input
+                  name="year"
+                  value={form.year}
+                  onChange={handleChange}
+                  placeholder="Year"
+                  type="number"
+                  className="w-full rounded-3xl border border-slate-200 bg-slate-50 p-4"
+                />
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <input
+                  name="type"
+                  value={form.type}
+                  onChange={handleChange}
+                  placeholder="Type"
+                  className="w-full rounded-3xl border border-slate-200 bg-slate-50 p-4"
+                />
+                <input
+                  name="pricePerDay"
+                  value={form.pricePerDay}
+                  onChange={handleChange}
+                  placeholder="Price per day"
+                  type="number"
+                  className="w-full rounded-3xl border border-slate-200 bg-slate-50 p-4"
+                />
+              </div>
+              <input
+                name="image"
+                value={form.image}
+                onChange={handleChange}
+                placeholder="Image URL"
+                className="w-full rounded-3xl border border-slate-200 bg-slate-50 p-4"
+              />
+              <textarea
+                name="description"
+                value={form.description}
+                onChange={handleChange}
+                placeholder="Description"
+                rows="4"
+                className="w-full rounded-3xl border border-slate-200 bg-slate-50 p-4"
+              />
+              {error ? <p className="text-sm text-red-600">{error}</p> : null}
+              <button
+                type="submit"
+                disabled={loading}
+                className="rounded-3xl bg-sky-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+              >
+                {loading ? "Saving..." : "Add Car"}
+              </button>
+            </form>
+          </section>
+
+          <section className="rounded-3xl bg-white p-8 shadow-xl border border-slate-200">
+            <h2 className="text-2xl font-semibold text-slate-900">Existing Cars</h2>
+            <div className="mt-6 space-y-4">
+              {cars.length === 0 ? (
+                <p className="text-slate-600">No cars available yet.</p>
+              ) : (
+                cars.map((carItem) => (
+                  <div key={carItem._id} className="rounded-3xl bg-slate-50 p-4">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="font-semibold text-slate-900">{carItem.name}</p>
+                        <p className="text-sm text-slate-500">{carItem.brand} • {carItem.model} • ${carItem.pricePerDay}/day</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(carItem._id)}
+                        className="rounded-full border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+src/app/api/auth/login/route.js:
+import connectDB from "@/lib/mongodb";
+import User from "@/models/User";
+
+export async function POST(request) {
+  try {
+    await connectDB();
+
+    const { email, password } = await request.json();
+
+    // Find user
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return Response.json(
+        {
+          success: false,
+          message: "User not found",
+        },
+        { status: 404 }
+      );
+    }
+
+    // Compare password (plain text)
+    if (password !== user.password) {
+      return Response.json(
+        {
+          success: false,
+          message: "Invalid credentials",
+        },
+        { status: 401 }
+      );
+    }
+
+    // Login success
+    return Response.json({
+      success: true,
+      message: "Login successful",
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+    });
+  } catch (error) {
+    console.log(error);
+
+    return Response.json(
+      {
+        success: false,
+        message: "Server Error",
+      },
+      { status: 500 }
+    );
+  }
+}
+src/app/api/auth/register.js:
+import connectDB from "@/lib/mongodb";
+import User from "@/models/User";
+
+export async function POST(request) {
+  try {
+    await connectDB();
+
+    const { name, email, password } = await request.json();
+
+    if (!name || !email || !password) {
+      return Response.json(
+        { success: false, message: "All fields are required" },
+        { status: 400 }
+      );
+    }
+
+    const existingUser = await User.findOne({ email });
+
+    if (existingUser) {
+      return Response.json(
+        { success: false, message: "Email already exists" },
+        { status: 400 }
+      );
+    }
+
+    const user = await User.create({
+      name,
+      email,
+      password,
+    });
+
+    return Response.json(
+      {
+        success: true,
+        message: "User registered successfully",
+        user,
+      },
+      { status: 201 }
+    );
+  } catch (error) {
+  console.error("REGISTER ERROR:", error);
+
+  return Response.json(
+    {
+      success: false,
+      message: error.message,
+    },
+    { status: 500 }
+  );
+}
+}
+
+src/app/api/bookings/route.js:
+import connectDB from "@/lib/mongodb";
+import Booking from "@/models/Booking";
+import Car from "@/models/Car";
+import User from "@/models/User";
+import nodemailer from "nodemailer";
+import { getUserFromToken } from "@/lib/authMiddleware";
+
+async function sendBookingEmail(userEmail, car, booking) {
+  if (!process.env.EMAIL_HOST || !process.env.EMAIL_USER || !process.env.EMAIL_PASS || !process.env.EMAIL_FROM) {
+    return;
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: process.env.EMAIL_HOST,
+    port: Number(process.env.EMAIL_PORT) || 587,
+    secure: process.env.EMAIL_SECURE === "true",
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+  });
+
+  const html = `
+    <div style="font-family:Arial, sans-serif; color:#111; line-height:1.5;">
+      <h1>Booking Confirmed</h1>
+      <p>Your car rental is confirmed.</p>
+      <p><strong>Car:</strong> ${car.name} (${car.brand} ${car.model})</p>
+      <p><strong>From:</strong> ${new Date(booking.startDate).toLocaleDateString()}</p>
+      <p><strong>To:</strong> ${new Date(booking.endDate).toLocaleDateString()}</p>
+      <p><strong>Total:</strong> $${booking.totalPrice}</p>
+      <p>Thank you for booking with us.</p>
+    </div>
+  `;
+
+  await transporter.sendMail({
+    from: process.env.EMAIL_FROM,
+    to: userEmail,
+    subject: `Booking confirmed: ${car.name}`,
+    html,
+  });
+}
+
+export async function GET(request) {
+  try {
+    await connectDB();
+
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get("userId");
+
+    if (!userId) {
+      return Response.json(
+        { success: false, message: "userId is required" },
+        { status: 400 }
+      );
+    }
+
+    const bookings = await Booking.find({ userId }).populate("carId");
+
+    return Response.json({
+      success: true,
+      bookings,
+    });
+  } catch (error) {
+    return Response.json(
+      { success: false, message: error.message },
+      { status: 500 }
+    );
+  }
+}
+
+// CREATE booking
+export async function POST(request) {
+  try {
+    await connectDB();
+
+    const body = await request.json();
+    const { userId, carId, startDate, endDate, totalPrice } = body;
+
+    if (!userId || !carId || !startDate || !endDate || !totalPrice) {
+      return Response.json(
+        { success: false, message: "All booking fields are required." },
+        { status: 400 }
+      );
+    }
+
+    const car = await Car.findById(carId);
+    if (!car) {
+      return Response.json(
+        { success: false, message: "Car not found." },
+        { status: 404 }
+      );
+    }
+
+    if (!car.available) {
+      return Response.json(
+        { success: false, message: "This car is already booked." },
+        { status: 400 }
+      );
+    }
+
+    const booking = await Booking.create({
+      userId,
+      carId,
+      startDate: new Date(startDate),
+      endDate: new Date(endDate),
+      totalPrice,
+      status: "confirmed",
+    });
+
+    car.available = false;
+    await car.save();
+
+    const userRecord = await User.findById(userId);
+    if (userRecord?.email) {
+      try {
+        await sendBookingEmail(userRecord.email, car, booking);
+      } catch (emailError) {
+        console.error("Booking email error:", emailError);
+      }
+    }
+
+    return Response.json({
+      success: true,
+      booking,
+    });
+  } catch (error) {
+    return Response.json(
+      { success: false, message: error.message },
+      { status: 500 }
+    );
+  }
+}
+
+src/app/api/cars/route.js:
+import connectDB from "@/lib/mongodb";
+import Car from "@/models/Car";
+
+// GET all cars
+export async function GET() {
+  try {
+    await connectDB();
+
+    const cars = await Car.find();
+
+    return Response.json({
+      success: true,
+      cars,
+    });
+  } catch (error) {
+    return Response.json(
+      { success: false, message: error.message },
+      { status: 500 }
+    );
+  }
+}
+
+// ADD car
+export async function POST(request) {
+  try {
+    await connectDB();
+
+    const body = await request.json();
+    const isAdmin = body.isAdmin === true || body.role === "admin";
+
+    if (!isAdmin) {
+      return Response.json(
+        { success: false, message: "Unauthorized: admin access required" },
+        { status: 401 }
+      );
+    }
+
+    const requiredFields = [
+      "name",
+      "brand",
+      "model",
+      "year",
+      "type",
+      "pricePerDay",
+      "image",
+      "description",
+    ];
+    const missingField = requiredFields.find((field) => !body[field]);
+
+    if (missingField) {
+      return Response.json(
+        { success: false, message: `${missingField} is required` },
+        { status: 400 }
+      );
+    }
+
+    const car = await Car.create(body);
+
+    return Response.json({
+      success: true,
+      car,
+    });
+  } catch (error) {
+    return Response.json(
+      { success: false, message: error.message },
+      { status: 500 }
+    );
+  }
+}
+
+src/app/api/cars/[id]/route.js:
+import connectDB from "@/lib/mongodb";
+import Car from "@/models/Car";
+
+export async function GET(request, { params }) {
+  try {
+    await connectDB();
+
+    const car = await Car.findById(params.id);
+
+    if (!car) {
+      return Response.json(
+        {
+          success: false,
+          message: "Car not found",
+        },
+        { status: 404 }
+      );
+    }
+
+    return Response.json({
+      success: true,
+      car,
+    });
+  } catch (error) {
+    return Response.json(
+      {
+        success: false,
+        message: error.message,
+      },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(request, { params }) {
+  try {
+    await connectDB();
+    const body = await request.json();
+    const isAdmin = body.isAdmin === true || body.role === "admin";
+    if (!isAdmin) {
+      return Response.json(
+        { success: false, message: "Unauthorized: admin access required" },
+        { status: 401 }
+      );
+    }
+
+    const car = await Car.findByIdAndUpdate(params.id, body, {
+      new: true,
+      runValidators: true,
+    });
+
+    if (!car) {
+      return Response.json(
+        { success: false, message: "Car not found" },
+        { status: 404 }
+      );
+    }
+
+    return Response.json({ success: true, car });
+  } catch (error) {
+    return Response.json(
+      { success: false, message: error.message },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request, { params }) {
+  try {
+    await connectDB();
+    const body = await request.json();
+    const isAdmin = body.isAdmin === true || body.role === "admin";
+    if (!isAdmin) {
+      return Response.json(
+        { success: false, message: "Unauthorized: admin access required" },
+        { status: 401 }
+      );
+    }
+
+    const car = await Car.findByIdAndDelete(params.id);
+
+    if (!car) {
+      return Response.json(
+        { success: false, message: "Car not found" },
+        { status: 404 }
+      );
+    }
+
+    return Response.json({ success: true, message: "Car deleted" });
+  } catch (error) {
+    return Response.json(
+      { success: false, message: error.message },
+      { status: 500 }
+    );
+  }
+}
+
+src/app/bookings/page.jsx:
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import api from "@/lib/api";
+
+export default function Bookings() {
+  const router = useRouter();
+  const [bookings, setBookings] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchBookings = async () => {
+      const storedUser = localStorage.getItem("user");
+      const user = storedUser ? JSON.parse(storedUser) : null;
+
+      if (!user) {
+        router.push("/login");
+        return;
+      }
+
+      try {
+        const res = await api.get(`/bookings?userId=${user.id}`);
+        setBookings(res.data.bookings || []);
+      } catch {
+        setBookings([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchBookings();
+  }, [router]);
+
+  return (
+    <main className="min-h-screen bg-slate-950 text-white px-6 py-10">
+      <div className="mx-auto max-w-6xl space-y-8">
+        <section className="rounded-[2rem] bg-slate-900/95 p-10 shadow-2xl border border-white/10">
+          <p className="text-sm uppercase tracking-[0.3em] text-sky-300">My trips</p>
+          <h1 className="mt-4 text-4xl font-bold">Your bookings</h1>
+          <p className="mt-4 max-w-2xl text-slate-300">Review confirmed rentals, trip dates, and total costs from your account.</p>
+        </section>
+
+        {bookings.length === 0 ? (
+          <section className="rounded-[2rem] bg-white p-10 shadow-2xl border border-slate-200 text-slate-950">
+            <p className="text-lg font-semibold">No bookings yet</p>
+            <p className="mt-3 text-slate-600">Browse cars and make your first reservation to see it here.</p>
+          </section>
+        ) : (
+          <div className="grid gap-6">
+            {bookings.map((booking) => (
+              <section key={booking._id} className="rounded-[2rem] bg-white p-8 shadow-2xl border border-slate-200 text-slate-950">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm uppercase tracking-[0.3em] text-slate-500">{booking.carId?.type || "Car"}</p>
+                    <h2 className="mt-2 text-2xl font-semibold">{booking.carId?.name || "Unknown vehicle"}</h2>
+                  </div>
+                  <span className="rounded-full bg-emerald-100 px-4 py-2 text-sm font-semibold text-emerald-700">{booking.status}</span>
+                </div>
+                <div className="mt-6 grid gap-4 sm:grid-cols-3">
+                  <div>
+                    <p className="text-sm uppercase tracking-[0.2em] text-slate-500">Start</p>
+                    <p className="mt-2 text-slate-900">{new Date(booking.startDate).toLocaleDateString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm uppercase tracking-[0.2em] text-slate-500">End</p>
+                    <p className="mt-2 text-slate-900">{new Date(booking.endDate).toLocaleDateString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm uppercase tracking-[0.2em] text-slate-500">Total</p>
+                    <p className="mt-2 text-slate-900">${booking.totalPrice}</p>
+                  </div>
+                </div>
+              </section>
+            ))}
+          </div>
+        )}
+      </div>
+    </main>
+  );
+}
+
+src/app/cars/page.jsx:
+"use client";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import api from "@/lib/api";
+
+export default function Cars() {
+  const [cars, setCars] = useState([]);
+
+  useEffect(() => {
+    api.get("/cars").then((res) => {
+      setCars(res.data.cars || []);
+    });
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-slate-100 to-slate-50 px-6 py-10">
+      <div className="mx-auto max-w-7xl">
+        <div className="mb-10 rounded-[2rem] bg-white p-10 shadow-2xl border border-slate-200">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm uppercase tracking-[0.3em] text-sky-600">Premium fleet</p>
+              <h1 className="mt-4 text-4xl font-bold text-slate-900">Find your next ride</h1>
+              <p className="mt-3 max-w-2xl text-slate-600">Browse available cars, compare daily rates, and book the ride that fits your journey.</p>
+            </div>
+            <div className="rounded-3xl bg-slate-950 px-6 py-4 text-right text-white shadow-lg">
+              <p className="text-sm uppercase tracking-[0.2em] text-sky-300">Instant booking</p>
+              <p className="mt-2 text-3xl font-semibold">Safe & smooth</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+          {cars.map((car) => (
+            <div
+              key={car._id}
+              className={`group overflow-hidden rounded-[2rem] border p-0 shadow-xl transition duration-300 ${car.available ? "border-slate-200 bg-white" : "border-rose-200 bg-rose-50/80 opacity-90"}`}
+            >
+              <div className="relative h-72 overflow-hidden">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={car.image}
+                  alt={car.name}
+                  className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                />
+                <span className={`absolute left-4 top-4 rounded-full px-3 py-1 text-xs font-semibold uppercase ${car.available ? "bg-emerald-500 text-white" : "bg-rose-500 text-white"}`}>
+                  {car.available ? "Available" : "Booked"}
+                </span>
+              </div>
+
+              <div className="p-6">
+                <h2 className="text-2xl font-semibold text-slate-900">{car.name}</h2>
+                <p className="mt-2 text-sm uppercase tracking-[0.2em] text-slate-500">{car.brand} · {car.type}</p>
+                <p className="mt-4 line-clamp-3 text-slate-700">{car.description}</p>
+
+                <div className="mt-6 flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm text-slate-500">Starting at</p>
+                    <p className="text-2xl font-bold text-slate-900">${car.pricePerDay}/day</p>
+                  </div>
+                  {car.available ? (
+                    <Link
+                      href={`/cars/${car._id}`}
+                      className="rounded-full px-5 py-3 text-sm font-semibold bg-sky-600 text-white transition hover:bg-sky-700"
+                    >
+                      Details
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled
+                      className="rounded-full px-5 py-3 text-sm font-semibold bg-slate-300 text-slate-700 cursor-not-allowed"
+                    >
+                      Booked
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+src/app/cars/[id]/page.jsx:
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import CarDetailClient from "@/components/CarDetailClient";
+import connectDB from "@/lib/mongodb";
+import Car from "@/models/Car";
+
+async function getCar(id) {
+  try {
+    await connectDB();
+    return await Car.findById(id).lean();
+  } catch (error) {
+    return null;
+  }
+}
+
+export default async function CarDetails({ params }) {
+  const car = await getCar(params.id);
+
+  if (!car) {
+    notFound();
+  }
+
+  return (
+    <main className="min-h-screen bg-slate-950 text-white px-6 py-10">
+      <div className="mx-auto max-w-7xl space-y-8">
+        <section className="rounded-[2rem] bg-slate-900/95 p-8 shadow-2xl border border-white/10">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-sm uppercase tracking-[0.3em] text-sky-300">Car details</p>
+              <h1 className="mt-3 text-4xl font-bold">{car.name}</h1>
+              <p className="mt-4 max-w-3xl text-slate-300">{car.description}</p>
+            </div>
+            <div className="rounded-3xl bg-slate-950/80 p-5 text-slate-100">
+              <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Price per day</p>
+              <p className="mt-2 text-4xl font-semibold">${car.pricePerDay}</p>
+              <p className="mt-3 text-sm uppercase tracking-[0.2em] text-slate-400">{car.available ? "Available" : "Unavailable"}</p>
+            </div>
+          </div>
+        </section>
+
+        <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
+          <section className="rounded-[2rem] bg-slate-900/95 p-8 shadow-2xl border border-white/10">
+            <div className="flex items-center justify-between gap-4 rounded-3xl bg-slate-950/80 p-5 text-slate-100">
+              <div>
+                <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Return to listings</p>
+                <h2 className="mt-2 text-lg font-semibold">Browse more cars anytime</h2>
+              </div>
+              <Link href="/cars" className="rounded-full bg-sky-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-400">
+                Back to cars
+              </Link>
+            </div>
+
+            <div className="overflow-hidden rounded-[2rem] border border-white/10 shadow-xl">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={car.image} alt={car.name} className="h-96 w-full object-cover" />
+            </div>
+
+            <div className="mt-8 grid gap-4 sm:grid-cols-3">
+              <div className="rounded-3xl bg-slate-950/80 p-5">
+                <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Brand</p>
+                <p className="mt-3 text-xl font-semibold text-white">{car.brand}</p>
+              </div>
+              <div className="rounded-3xl bg-slate-950/80 p-5">
+                <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Model</p>
+                <p className="mt-3 text-xl font-semibold text-white">{car.model}</p>
+              </div>
+              <div className="rounded-3xl bg-slate-950/80 p-5">
+                <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Year</p>
+                <p className="mt-3 text-xl font-semibold text-white">{car.year}</p>
+              </div>
+            </div>
+
+            <div className="mt-6 grid gap-4 sm:grid-cols-2">
+              <div className="rounded-3xl bg-slate-950/80 p-5">
+                <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Type</p>
+                <p className="mt-3 text-xl font-semibold text-white">{car.type}</p>
+              </div>
+              <div className="rounded-3xl bg-slate-950/80 p-5">
+                <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Availability</p>
+                <p className="mt-3 text-xl font-semibold text-white">{car.available ? "Available" : "Not available"}</p>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-[2rem] bg-white p-8 shadow-2xl border border-slate-200 text-slate-950">
+            <div className="flex items-center justify-between gap-4 rounded-3xl bg-slate-950/5 p-6">
+              <div>
+                <p className="text-sm uppercase tracking-[0.3em] text-slate-500">Booking</p>
+                <h2 className="mt-2 text-2xl font-bold">Confirm your rental</h2>
+              </div>
+              <span className={`rounded-full px-4 py-2 text-sm font-semibold ${car.available ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`}>
+                {car.available ? "Available" : "Unavailable"}
+              </span>
+            </div>
+
+            <div className="mt-8">
+              <CarDetailClient car={car} />
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+  );
+}
+src/app/dashboard/page.jsx:
+import connectDB from "@/lib/mongodb";
+import Car from "@/models/Car";
+import User from "@/models/User";
+import Booking from "@/models/Booking";
+
+async function getStats() {
+  await connectDB();
+  const totalCars = await Car.countDocuments();
+  const totalUsers = await User.countDocuments();
+  const totalBookings = await Booking.countDocuments();
+  const latestBookings = await Booking.find()
+    .sort({ createdAt: -1 })
+    .limit(4)
+    .populate("carId", "name pricePerDay");
+
+  return { totalCars, totalUsers, totalBookings, latestBookings };
+}
+
+export default async function Dashboard() {
+  const { totalCars, totalUsers, totalBookings, latestBookings } = await getStats();
+
+  return (
+    <main className="min-h-screen bg-slate-950 text-white px-6 py-10">
+      <div className="mx-auto max-w-6xl space-y-8">
+        <section className="rounded-[2rem] bg-slate-900/95 p-10 shadow-2xl border border-white/10">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 className="text-4xl font-bold">Admin dashboard</h1>
+              <p className="mt-3 max-w-2xl text-slate-300">Monitor cars, users, and bookings from a clean admin panel.</p>
+            </div>
+            <a
+              href="/admin/cars"
+              className="inline-flex rounded-full bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700"
+            >
+              Manage cars
+            </a>
+          </div>
+        </section>
+
+        <div className="grid gap-6 md:grid-cols-3">
+          <div className="rounded-[2rem] bg-white p-8 shadow-2xl border border-slate-200 text-slate-950">
+            <p className="text-sm uppercase tracking-[0.2em] text-slate-500">Total cars</p>
+            <p className="mt-4 text-4xl font-bold">{totalCars}</p>
+          </div>
+          <div className="rounded-[2rem] bg-white p-8 shadow-2xl border border-slate-200 text-slate-950">
+            <p className="text-sm uppercase tracking-[0.2em] text-slate-500">Total users</p>
+            <p className="mt-4 text-4xl font-bold">{totalUsers}</p>
+          </div>
+          <div className="rounded-[2rem] bg-white p-8 shadow-2xl border border-slate-200 text-slate-950">
+            <p className="text-sm uppercase tracking-[0.2em] text-slate-500">Total bookings</p>
+            <p className="mt-4 text-4xl font-bold">{totalBookings}</p>
+          </div>
+        </div>
+
+        <section className="rounded-[2rem] bg-white p-8 shadow-2xl border border-slate-200 text-slate-950">
+          <h2 className="text-2xl font-semibold">Latest bookings</h2>
+          {latestBookings.length === 0 ? (
+            <p className="mt-4 text-slate-600">No bookings yet.</p>
+          ) : (
+            <div className="mt-6 space-y-4">
+              {latestBookings.map((booking) => (
+                <div key={booking._id} className="rounded-3xl bg-slate-50 p-5">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="font-semibold text-slate-900">{booking.carId?.name ?? "Unknown vehicle"}</p>
+                      <p className="text-sm text-slate-500">{new Date(booking.startDate).toLocaleDateString()} - {new Date(booking.endDate).toLocaleDateString()}</p>
+                    </div>
+                    <p className="text-sm font-semibold text-slate-700">${booking.totalPrice}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+    </main>
+  );
+}
+
+src/app/login/page.jsx:
+"use client";
+
+import Link from "next/link";
+import { useState } from "react";
+import api from "@/lib/api";
+import { useRouter } from "next/navigation";
+
+export default function Login() {
+  const router = useRouter();
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+    setIsSubmitting(true);
+
+    try {
+      const res = await api.post("/auth/login", {
+        email,
+        password,
+      });
+      
+      localStorage.setItem("user", JSON.stringify(res.data.user));
+
+      setSuccess("Login successful! Redirecting...");
+      setTimeout(() => router.push("/cars"), 700);
+    } catch (err) {
+      setError(err.response?.data?.message || "Login failed. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center px-4 py-10">
+      <div className="grid w-full max-w-5xl gap-8 lg:grid-cols-[1.2fr_0.8fr] rounded-[2rem] bg-gradient-to-br from-slate-900 to-slate-700 p-8 shadow-2xl">
+        <div className="space-y-6">
+          <div>
+            <p className="text-sm uppercase tracking-[0.3em] text-sky-400">Welcome back</p>
+            <h1 className="mt-4 text-4xl font-bold text-white">Sign in to your account</h1>
+            <p className="mt-3 text-slate-300">Access your bookings, manage rentals, and explore premium cars.</p>
+          </div>
+
+          <div className="grid gap-4 rounded-3xl bg-slate-950/80 p-6 shadow-inner border border-slate-800">
+            <div className="rounded-3xl bg-slate-900 p-4">
+              <p className="text-sm uppercase tracking-[0.2em] text-sky-400">New here?</p>
+              <p className="mt-2 text-slate-300">Create your account and start booking cars instantly.</p>
+            </div>
+            <Link href="/register" className="inline-flex items-center justify-center rounded-full bg-sky-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-sky-400">
+              Create account
+            </Link>
+          </div>
+        </div>
+
+        <form onSubmit={handleLogin} className="rounded-[2rem] bg-white p-8 shadow-2xl text-slate-900">
+          <h2 className="text-3xl font-bold">Log in</h2>
+          <p className="mt-2 text-sm text-slate-500">Use your email and password to enter the app.</p>
+
+          <div className="mt-8 space-y-4">
+            <label className="block text-sm font-medium text-slate-700">Email</label>
+            <input
+              value={email}
+              className="w-full rounded-3xl border border-slate-300 bg-slate-50 px-4 py-3 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-200"
+              placeholder="you@example.com"
+              type="email"
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="mt-4 space-y-4">
+            <label className="block text-sm font-medium text-slate-700">Password</label>
+            <input
+              value={password}
+              className="w-full rounded-3xl border border-slate-300 bg-slate-50 px-4 py-3 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-200"
+              placeholder="Enter your password"
+              type="password"
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </div>
+
+          {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : null}
+          {success ? <p className="mt-4 text-sm text-emerald-600">{success}</p> : null}
+
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="mt-8 w-full rounded-3xl bg-slate-900 px-6 py-3 text-sm font-semibold uppercase tracking-[0.15em] text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-500"
+          >
+            {isSubmitting ? "Logging in..." : "Login"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+src/app/profile/page.jsx:
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import api from "@/lib/api";
+
+export default function Profile() {
+  const router = useRouter();
+  const [user, setUser] = useState(null);
+  const [bookings, setBookings] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      const stored = localStorage.getItem("user");
+      if (!stored) {
+        router.push("/login");
+        return;
+      }
+
+      const parsed = JSON.parse(stored);
+      setUser(parsed);
+
+      try {
+        const res = await api.get(`/bookings?userId=${parsed.id}`);
+        setBookings(res.data.bookings || []);
+      } catch {
+        setBookings([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, [router]);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-white px-6 py-10">
+        <div className="rounded-3xl bg-slate-900/95 px-8 py-10 text-center shadow-2xl">
+          <p className="text-lg font-semibold">Loading profile...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-slate-950 text-white px-6 py-10">
+      <div className="mx-auto max-w-6xl space-y-8">
+        <section className="rounded-[2rem] bg-slate-900/95 p-10 shadow-2xl border border-white/10">
+          <p className="text-sm uppercase tracking-[0.3em] text-sky-300">Account</p>
+          <h1 className="mt-4 text-4xl font-bold">My profile</h1>
+          <p className="mt-4 max-w-2xl text-slate-300">Manage your account and keep track of your current and future rentals.</p>
+        </section>
+
+        <section className="rounded-[2rem] bg-white p-10 shadow-2xl border border-slate-200 text-slate-950">
+          <div className="grid gap-6 sm:grid-cols-3">
+            <div className="rounded-3xl bg-slate-50 p-6">
+              <p className="text-sm uppercase tracking-[0.2em] text-slate-500">Name</p>
+              <p className="mt-2 text-xl font-semibold text-slate-900">{user.name}</p>
+            </div>
+            <div className="rounded-3xl bg-slate-50 p-6">
+              <p className="text-sm uppercase tracking-[0.2em] text-slate-500">Email</p>
+              <p className="mt-2 text-xl font-semibold text-slate-900">{user.email}</p>
+            </div>
+            <div className="rounded-3xl bg-slate-50 p-6">
+              <p className="text-sm uppercase tracking-[0.2em] text-slate-500">Role</p>
+              <p className="mt-2 text-xl font-semibold text-slate-900 capitalize">{user.role}</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-[2rem] bg-white p-10 shadow-2xl border border-slate-200 text-slate-950">
+          <h2 className="text-3xl font-semibold">Recent bookings</h2>
+          {bookings.length === 0 ? (
+            <p className="mt-4 text-slate-600">No bookings yet. Head over to the fleet to reserve your first car.</p>
+          ) : (
+            <div className="mt-6 space-y-4">
+              {bookings.map((booking) => (
+                <div key={booking._id} className="rounded-3xl bg-slate-50 p-6">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-lg font-semibold text-slate-900">{booking.carId?.name || "Unknown vehicle"}</p>
+                      <p className="text-sm text-slate-500">{new Date(booking.startDate).toLocaleDateString()} - {new Date(booking.endDate).toLocaleDateString()}</p>
+                    </div>
+                    <p className="text-sm font-semibold text-slate-700">${booking.totalPrice}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+    </main>
+  );
+}
+
+src/app/register/page.jsx:
+
+src/app/global.css:
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+  --background: #eff6ff;
+  --foreground: #0f172a;
+  --surface: #ffffff;
+  --border: #cbd5e1;
+  --primary: #0ea5e9;
+  --primary-strong: #0284c7;
+  --muted: #64748b;
+  --radius: 1.5rem;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: radial-gradient(circle at top, rgba(56, 189, 248, 0.16), transparent 28%), linear-gradient(180deg, #eff6ff 0%, #f8fafc 100%);
+  color: var(--foreground);
+  font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+::selection {
+  background: rgba(14, 165, 233, 0.25);
+}
+
+src/app/layout.js:
+import { Geist, Geist_Mono } from "next/font/google";
+import "./globals.css";
+import Navbar from "@/components/Navbar";
+
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+export const metadata = {
+  title: "Car Rental App",
+  description: "Full Stack Car Rental Application",
+};
+
+export default function RootLayout({ children }) {
+  return (
+    <html lang="en">
+      <body
+        className={`${geistSans.variable} ${geistMono.variable}`}
+      >
+        <Navbar />
+        {children}
+      </body>
+    </html>
+  );
+}
+
+src/app/page.js:
+import Link from "next/link";
+
+export default function Home() {
+  return (
+    <main className="min-h-screen bg-slate-950 text-white">
+      <div className="mx-auto flex min-h-screen max-w-7xl flex-col justify-center gap-10 px-6 py-16">
+        <section className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
+          <div className="rounded-[2rem] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700 p-12 shadow-2xl border border-white/10">
+            <span className="inline-flex rounded-full bg-sky-400/20 px-4 py-2 text-sm uppercase tracking-[0.3em] text-sky-200">Car rental</span>
+            <h1 className="mt-8 text-5xl font-bold leading-tight tracking-tight text-white sm:text-6xl">Drive the ride you want with a modern booking experience.</h1>
+            <p className="mt-6 max-w-3xl text-slate-300">Browse premium cars, reserve your dates, and manage trips from a beautifully designed rental app.</p>
+            <div className="mt-10 flex flex-col gap-4 sm:flex-row">
+              <Link href="/cars" className="inline-flex items-center justify-center rounded-full bg-sky-500 px-8 py-4 text-base font-semibold text-slate-950 transition hover:bg-sky-400">Browse Cars</Link>
+              <Link href="/register" className="inline-flex items-center justify-center rounded-full border border-slate-200/30 px-8 py-4 text-base font-semibold text-white transition hover:bg-white/10">Create Account</Link>
+            </div>
+          </div>
+
+          <div className="rounded-[2rem] bg-white p-10 shadow-2xl border border-slate-800 text-slate-950">
+            <h2 className="text-3xl font-bold">Everything you need to rent.</h2>
+            <p className="mt-4 text-slate-600">A friendly interface for customers and an admin dashboard for managing cars and bookings.</p>
+            <div className="mt-10 grid gap-4">
+              <div className="rounded-3xl bg-slate-950/5 p-6">
+                <p className="font-semibold text-slate-900">Fast browsing</p>
+                <p className="mt-2 text-slate-600">See available cars with details, prices, and booking status at a glance.</p>
+              </div>
+              <div className="rounded-3xl bg-slate-950/5 p-6">
+                <p className="font-semibold text-slate-900">One-click booking</p>
+                <p className="mt-2 text-slate-600">Pick your car, choose dates, and confirm with a login-protected booking flow.</p>
+              </div>
+              <div className="rounded-3xl bg-slate-950/5 p-6">
+                <p className="font-semibold text-slate-900">Email confirmation</p>
+                <p className="mt-2 text-slate-600">Booked rentals can trigger confirmation emails when SMTP is configured.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  );
+}
+

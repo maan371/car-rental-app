@@ -1,11 +1,10 @@
 import jwt from "jsonwebtoken";
 
+const JWT_SECRET = process.env.JWT_SECRET || "dev_jwt_secret_change_me";
+
 export function verifyToken(token) {
   try {
-    return jwt.verify(
-      token,
-      process.env.JWT_SECRET
-    );
+    return jwt.verify(token, JWT_SECRET);
   } catch (error) {
     return null;
   }

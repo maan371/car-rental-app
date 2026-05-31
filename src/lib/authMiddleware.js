@@ -1,19 +1,5 @@
-import jwt from "jsonwebtoken";
-
 export function getUserFromToken(request) {
-  try {
-    const authHeader = request.headers.get("authorization");
-
-    if (!authHeader) return null;
-
-    const token = authHeader.split(" ")[1];
-
-    if (!token) return null;
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    return decoded;
-  } catch (error) {
-    return null;
-  }
+  // Without JWT, we'll get user info from the request headers or session
+  // For now, return null - routes can use email-based lookup or session
+  return null;
 }

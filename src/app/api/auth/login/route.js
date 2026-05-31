@@ -1,7 +1,5 @@
 import connectDB from "@/lib/mongodb";
 import User from "@/models/User";
-import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
 
 export async function POST(request) {
   try {
@@ -13,37 +11,27 @@ export async function POST(request) {
 
     if (!user) {
       return Response.json(
-        { success: false, message: "User not found" },
+        {
+          success: false,
+          message: "User not found",
+        },
         { status: 404 }
       );
     }
 
-    const isMatch = await bcrypt.compare(
-      password,
-      user.password
-    );
-
-    if (!isMatch) {
+    if (password !== user.password) {
       return Response.json(
-        { success: false, message: "Invalid credentials" },
+        {
+          success: false,
+          message: "Invalid credentials",
+        },
         { status: 401 }
       );
     }
 
-    const token = jwt.sign(
-      {
-        userId: user._id,
-        role: user.role,
-      },
-      process.env.JWT_SECRET,
-      {
-        expiresIn: "7d",
-      }
-    );
-
     return Response.json({
       success: true,
-      token,
+      message: "Login successful",
       user: {
         id: user._id,
         name: user.name,
@@ -55,7 +43,10 @@ export async function POST(request) {
     console.log(error);
 
     return Response.json(
-      { success: false, message: "Server Error" },
+      {
+        success: false,
+        message: "Server Error",
+      },
       { status: 500 }
     );
   }

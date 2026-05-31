@@ -18,6 +18,22 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
 
+### Environment variables
+
+Copy `.env.local.example` to `.env.local` and update the values before running the app.
+
+Required variables:
+
+- `MONGODB_URI` — your MongoDB connection string
+- `EMAIL_HOST` — SMTP host for booking confirmation emails
+- `EMAIL_PORT` — SMTP port (commonly `587` or `465`)
+- `EMAIL_SECURE` — `true` for SSL/TLS, `false` for standard SMTP
+- `EMAIL_USER` — SMTP username
+- `EMAIL_PASS` — SMTP password
+- `EMAIL_FROM` — sender address shown in confirmation emails
+
+This project also supports `NEXT_PUBLIC_API_URL` for the client API base URL.
+
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
 ## Learn More

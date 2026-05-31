@@ -8,9 +8,9 @@ import api from "@/lib/api";
 export default function BookingModal({ car, onClose }) {
   const [startDate, setStartDate] = useState(new Date());
   const [endDate, setEndDate] = useState(new Date());
+  const user = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("user") || "null") : null;
 
   const handleBooking = async () => {
-    const token = localStorage.getItem("token");
 
     const days =
       Math.ceil(
@@ -23,15 +23,11 @@ export default function BookingModal({ car, onClose }) {
       await api.post(
         "/bookings",
         {
+          userId: user.id,
           carId: car._id,
           startDate,
           endDate,
           totalPrice,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
         }
       );
 
